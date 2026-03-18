@@ -1,21 +1,21 @@
-name: IPL Daily ETL
+name: IPL Match Update
 
 on:
-  # Runs at 18:30 UTC = 00:00 IST (midnight) — after the last match of the day ends
-  schedule:
-    - cron: "30 18 * * *"
-
-  # Allow manual trigger with optional date override
+  # Manual trigger only — run this after each IPL match day once
+  # Cricsheet has published the match (usually 12-24h after match ends).
+  # Go to: Actions → "IPL Match Update" → "Run workflow"
   workflow_dispatch:
     inputs:
-      date:
-        description: "Date to process (YYYY-MM-DD). Leave blank for today."
+      dry_run:
+        description: "Dry run (show new matches without loading)"
         required: false
-        default: ""
+        default: "false"
+        type: choice
+        options: ["false", "true"]
 
 jobs:
-  etl:
-    name: Scrape & Load
+  update:
+    name: Load New Matches
     runs-on: ubuntu-latest
 
     steps:
@@ -31,17 +31,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run daily update
+      - name: Run update
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          DATE_ARG=""
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            DATE_ARG="--date ${{ github.event.inputs.date }}"
+          FLAGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            FLAGS="--dry-run"
           fi
-          python scripts/daily_update.py $DATE_ARG
-
-      - name: Notify on failure
-        if: failure()
-        run: |
-          echo "::error::Daily ETL failed — check logs above"
+          python scripts/daily_update.py $FLAGS

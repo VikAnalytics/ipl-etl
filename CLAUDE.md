@@ -92,16 +92,18 @@ python scripts/backfill_teams.py                # normalize team names in DB
 python scripts/enrich_players.py                # enrich player profiles
 ```
 
-## GitHub Actions
-- Workflow: `.github/workflows/daily_update.yml`
-- Runs daily at 18:30 UTC (midnight IST)
-- `DATABASE_URL` secret must be set in repo Settings → Secrets → Actions
-- First IPL 2026 match: March 28 — scraper needs live validation on that day
-- Manual trigger available with optional `--date YYYY-MM-DD` override
+## In-Season Updates (April IPL)
+- **Source**: Cricsheet IPL ZIP (`https://cricsheet.org/downloads/ipl_json.zip`)
+- **Workflow**: Manual trigger only — `.github/workflows/daily_update.yml`
+- After each match day, once Cricsheet publishes (usually 12-24h after match):
+  1. Go to GitHub → Actions → "IPL Match Update" → "Run workflow"
+  2. Leave dry_run = false, click Run
+  3. Script downloads ZIP, finds new match IDs not in etl_run_log, loads them
+- **Dry run option**: set dry_run = true to preview new matches without loading
+- ESPNcricinfo and Cricbuzz both block automated requests (Akamai/WAF) — not viable
 
 ## Notes
 - Raw JSON files are gitignored (~1170 files, too large for git)
 - `ipl_json/` is the expected local path for source files
-- ESPNcricinfo scraper is gray-area (ToS) — polite delays built in, runs once per day max
-- iplt20.com scraper targets 2025 season structure — HTML may change each season
-- `scraper/cricinfo.py` is a functional stub — needs live validation on March 28 first match
+- `scraper/iplt20.py` is for auction/player_season enrichment — not yet validated, deferred post-April
+- `DATABASE_URL` secret must be set in GitHub repo Settings → Secrets → Actions
