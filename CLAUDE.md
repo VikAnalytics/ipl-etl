@@ -5,44 +5,52 @@ Custom ETL pipeline that transforms Cricsheet IPL JSON match files into a struct
 
 ## Stack
 - **Language**: Python 3.11+
-- **Database**: Supabase (hosted Postgres)
-- **Orchestration**: GitHub Actions (daily cron, runs after IPL match days in April)
+- **Database**: Supabase (hosted Postgres) — project at `db.qjvauxaoentvtefvbknp.supabase.co`
+- **Orchestration**: GitHub Actions (daily cron at 18:30 UTC = midnight IST, April only)
+- **Repo**: https://github.com/VikAnalytics/ipl-etl
 - **Future**: FastAPI for REST API, Streamlit for NL-to-SQL dashboard
 
 ## Project Structure
 ```
 ipl-etl/
 ├── etl/
-│   ├── parser.py       # Parse Cricsheet JSON → normalized Python dicts
-│   ├── computed.py     # Add derived columns (phase, running score, etc.)
-│   └── loader.py       # Upsert records into Supabase via psycopg2
+│   ├── parser.py         # Parse Cricsheet JSON → normalized Python dicts
+│   ├── computed.py       # Add derived columns (phase, running score, etc.)
+│   ├── loader.py         # Upsert records into Supabase via psycopg2
+│   └── team_resolver.py  # Canonical team name resolution (handles aliases + old names)
 ├── scraper/
-│   ├── cricinfo.py     # ESPNcricinfo scraper for new April match files
-│   └── iplt20.py       # iplt20.com scraper for auction/squad data
+│   ├── cricinfo.py       # ESPNcricinfo scraper for new April match files
+│   ├── people.py         # Cricsheet people.csv → cricinfo_id mapping
+│   ├── player_profiles.py # ESPNcricinfo player profiles (nationality, role, style)
+│   └── iplt20.py         # iplt20.com scraper for auction/squad data
 ├── schema/
-│   └── schema.sql      # Full Postgres DDL — run once to create all tables
+│   └── schema.sql        # Full Postgres DDL — run once to create all tables
 ├── scripts/
-│   ├── historical_load.py   # One-time load of all Cricsheet historical files
-│   └── daily_update.py      # Entry point for GitHub Actions daily run
+│   ├── historical_load.py    # One-time load of all Cricsheet historical files
+│   ├── daily_update.py       # Entry point for GitHub Actions daily run
+│   ├── backfill_teams.py     # Normalize historical team names in DB to canonical
+│   └── enrich_players.py     # Orchestrate player enrichment (people.csv + profiles + auction)
 ├── .github/workflows/
-│   └── daily_update.yml     # Cron workflow: scrape + parse + load
-├── ipl_json/               # Raw Cricsheet JSON files (gitignored)
+│   └── daily_update.yml      # Cron workflow: scrape + parse + load
+├── ipl_json/                 # Raw Cricsheet JSON files (gitignored)
 ├── .env.example
 └── requirements.txt
 ```
 
 ## Database Schema (tables)
+- `teams` — canonical team names with short names and aliases array (for query resolution)
 - `matches` — one row per match, all match-level metadata
 - `innings` — one row per innings (including super overs)
 - `deliveries` — one row per ball; includes computed columns (phase, running score, etc.)
-- `players` — player registry keyed on Cricsheet person ID
+- `players` — player registry keyed on Cricsheet person ID; enriched with cricinfo_id, nationality, role
 - `match_players` — squad per match (who played for which team)
 - `officials` — match officials per match (umpires, referees)
 - `powerplays` — powerplay segments per innings
 - `player_season` — auction price, retention status, overseas flag per player per season
+- `etl_run_log` — tracks every ETL run for idempotency and debugging
 
 ## Key Design Decisions
-- **match_id**: Cricsheet file name without extension (e.g. `1082591`) — used as PK across all tables
+- **match_id**: Cricsheet file name without extension (e.g. `1082591`) — PK across all tables
 - **delivery_id**: `{match_id}_{innings_number}_{over}_{ball}` — stable, human-readable composite
 - **Upserts everywhere**: All loads use `INSERT ... ON CONFLICT DO UPDATE` — safe to re-run
 - **over_number**: 0-indexed as in Cricsheet (over 0 = first over)
@@ -50,24 +58,50 @@ ipl-etl/
 - **wicket_fielders**: Stored as JSONB array (can have multiple fielders on a dismissal)
 - **Super overs**: innings_number 3+ with `is_super_over = true`
 - **Impact player replacements**: stored on the delivery where the replacement was recorded
+- **season**: stored as VARCHAR(10) — Cricsheet uses `"2020/21"` for the UAE season
+- **Team names**: always stored as canonical names (e.g. "Delhi Capitals", not "Delhi Daredevils"). team_resolver.py handles all variants. Old names resolve correctly via the `teams.aliases` array.
+
+## Team Name Aliases (key mappings)
+| Old / Alternate | Canonical |
+|---|---|
+| Delhi Daredevils, DD | Delhi Capitals |
+| Kings XI Punjab, KXIP | Punjab Kings |
+| Royal Challengers Bangalore, RCB | Royal Challengers Bengaluru |
+| Rising Pune Supergiants | Rising Pune Supergiant |
+| Deccan Chargers | Deccan Chargers (kept separate — different franchise from SRH) |
+
+## Player Enrichment Pipeline
+Run after historical load to fill in profile data:
+```bash
+python scripts/enrich_players.py          # all steps
+python scripts/enrich_players.py --step 1 # people.csv → cricinfo_id
+python scripts/enrich_players.py --step 2 # ESPNcricinfo profiles
+python scripts/enrich_players.py --step 3 # iplt20 auction data
+```
+Step 1 must run before Step 2. Steps 2 and 3 are independent of each other.
 
 ## Environment Variables
-See `.env.example`. Must set `DATABASE_URL` (Supabase direct connection string).
+See `.env.example`. Must set `DATABASE_URL` (Supabase direct connection string, port 5432).
 
 ## Running Locally
 ```bash
 pip install -r requirements.txt
 cp .env.example .env  # fill in DATABASE_URL
-python scripts/historical_load.py  # load all historical matches
+python scripts/historical_load.py --skip-done   # load all historical matches
+python scripts/backfill_teams.py                # normalize team names in DB
+python scripts/enrich_players.py                # enrich player profiles
 ```
 
 ## GitHub Actions
-Workflow runs daily at 18:30 UTC (midnight IST) during April. It:
-1. Scrapes ESPNcricinfo for any new IPL match files from that day
-2. Converts to Cricsheet-compatible format
-3. Runs the ETL pipeline to upsert into Supabase
+- Workflow: `.github/workflows/daily_update.yml`
+- Runs daily at 18:30 UTC (midnight IST)
+- `DATABASE_URL` secret must be set in repo Settings → Secrets → Actions
+- First IPL 2026 match: March 28 — scraper needs live validation on that day
+- Manual trigger available with optional `--date YYYY-MM-DD` override
 
 ## Notes
-- Raw JSON files are gitignored (too large for repo, ~1170 files)
+- Raw JSON files are gitignored (~1170 files, too large for git)
 - `ipl_json/` is the expected local path for source files
-- Scraper is gray-area (ESPNcricinfo ToS) — do not abuse request rates; includes polite delays
+- ESPNcricinfo scraper is gray-area (ToS) — polite delays built in, runs once per day max
+- iplt20.com scraper targets 2025 season structure — HTML may change each season
+- `scraper/cricinfo.py` is a functional stub — needs live validation on March 28 first match

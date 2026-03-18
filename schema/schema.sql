@@ -3,6 +3,43 @@
 -- Safe to re-run: uses CREATE TABLE IF NOT EXISTS.
 
 -- ============================================================
+-- TEAMS
+-- Canonical team names with aliases for query resolution.
+-- team1/team2 in matches and team in innings always use canonical_name.
+-- Queries using old names (e.g. "Delhi Daredevils") resolve via aliases.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS teams (
+    team_id         SERIAL       PRIMARY KEY,
+    canonical_name  VARCHAR(100) NOT NULL UNIQUE,  -- stored everywhere in DB
+    short_name      VARCHAR(10),                   -- RCB, CSK, MI etc.
+    aliases         TEXT[]                         -- all historical / alternate names
+);
+
+-- Seed data: current franchises + all known historical names as aliases
+INSERT INTO teams (canonical_name, short_name, aliases) VALUES
+    ('Chennai Super Kings',         'CSK',  ARRAY['Chennai Super Kings']),
+    ('Mumbai Indians',              'MI',   ARRAY['Mumbai Indians']),
+    ('Royal Challengers Bengaluru', 'RCB',  ARRAY['Royal Challengers Bangalore', 'Royal Challengers Bengaluru']),
+    ('Kolkata Knight Riders',       'KKR',  ARRAY['Kolkata Knight Riders']),
+    ('Sunrisers Hyderabad',         'SRH',  ARRAY['Sunrisers Hyderabad']),
+    ('Rajasthan Royals',            'RR',   ARRAY['Rajasthan Royals']),
+    ('Delhi Capitals',              'DC',   ARRAY['Delhi Daredevils', 'Delhi Capitals']),
+    ('Punjab Kings',                'PBKS', ARRAY['Kings XI Punjab', 'Punjab Kings']),
+    ('Lucknow Super Giants',        'LSG',  ARRAY['Lucknow Super Giants']),
+    ('Gujarat Titans',              'GT',   ARRAY['Gujarat Titans']),
+    -- Defunct franchises kept as-is (different ownership, not rebrands)
+    ('Deccan Chargers',             'DC2',  ARRAY['Deccan Chargers']),
+    ('Pune Warriors',               'PW',   ARRAY['Pune Warriors']),
+    ('Kochi Tuskers Kerala',        'KTK',  ARRAY['Kochi Tuskers Kerala']),
+    ('Rising Pune Supergiant',      'RPS',  ARRAY['Rising Pune Supergiant', 'Rising Pune Supergiants'])
+ON CONFLICT (canonical_name) DO UPDATE SET
+    short_name = EXCLUDED.short_name,
+    aliases    = EXCLUDED.aliases;
+
+CREATE INDEX IF NOT EXISTS idx_teams_canonical ON teams (canonical_name);
+CREATE INDEX IF NOT EXISTS idx_teams_aliases   ON teams USING GIN (aliases);
+
+-- ============================================================
 -- MATCHES
 -- One row per match (keyed on Cricsheet file ID)
 -- ============================================================
@@ -15,7 +52,7 @@ CREATE TABLE IF NOT EXISTS matches (
     revision            INT,
 
     -- Event
-    season              INT          NOT NULL,
+    season              VARCHAR(10)  NOT NULL,  -- e.g. 2017 or "2020/21"
     match_number        INT,
     event_name          VARCHAR(100),
 

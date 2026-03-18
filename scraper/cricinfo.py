@@ -223,7 +223,7 @@ def _convert_to_cricsheet(match_id: str, espn_data: dict) -> dict:
             ],
             "players":  _map_players(teams),
             "registry": {"people": _build_registry(teams)},
-            "season":   int(match_info.get("season", {}).get("year", 0) or 0),
+            "season":   str(match_info.get("season", {}).get("year", "")),
             "team_type": "club",
             "teams":    team_names,
             "toss": {

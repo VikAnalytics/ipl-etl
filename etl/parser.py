@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from etl.team_resolver import resolve_team
+
 
 # ── Data containers ──────────────────────────────────────────────────────────
 
@@ -102,7 +104,7 @@ def _parse_match(match_id: str, meta: dict, info: dict) -> dict:
         "data_version":      meta.get("data_version"),
         "created_date":      meta.get("created"),
         "revision":          meta.get("revision"),
-        "season":            info.get("season"),
+        "season":            str(info.get("season", "")),
         "match_number":      event.get("match_number"),
         "event_name":        event.get("name"),
         "match_type":        info.get("match_type"),
@@ -113,11 +115,11 @@ def _parse_match(match_id: str, meta: dict, info: dict) -> dict:
         "venue":             info.get("venue"),
         "city":              info.get("city"),
         "match_date":        dates[0] if dates else None,
-        "team1":             info["teams"][0] if len(info.get("teams", [])) > 0 else None,
-        "team2":             info["teams"][1] if len(info.get("teams", [])) > 1 else None,
-        "toss_winner":       toss.get("winner"),
+        "team1":             resolve_team(info["teams"][0]) if len(info.get("teams", [])) > 0 else None,
+        "team2":             resolve_team(info["teams"][1]) if len(info.get("teams", [])) > 1 else None,
+        "toss_winner":       resolve_team(toss.get("winner", "")),
         "toss_decision":     toss.get("decision"),
-        "outcome_winner":    outcome.get("winner"),
+        "outcome_winner":    resolve_team(outcome.get("winner", "")) if outcome.get("winner") else None,
         "outcome_by_runs":   by.get("runs"),
         "outcome_by_wickets": by.get("wickets"),
         "outcome_method":    outcome.get("method"),
@@ -149,7 +151,7 @@ def _parse_match_players(match_id: str, info: dict) -> list[dict]:
         for name in players:
             rows.append({
                 "match_id":    match_id,
-                "team":        team,
+                "team":        resolve_team(team),
                 "player_key":  registry.get(name, name),  # fallback to name if not in registry
                 "player_name": name,
             })
@@ -193,7 +195,7 @@ def _parse_innings(
     inn_row = {
         "match_id":       match_id,
         "innings_number": innings_number,
-        "team":           inn_raw["team"],
+        "team":           resolve_team(inn_raw["team"]),
         "is_super_over":  is_super_over,
         "target_runs":    target.get("runs"),
         "target_overs":   target.get("overs"),
