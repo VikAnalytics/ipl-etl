@@ -1,0 +1,47 @@
+name: IPL Daily ETL
+
+on:
+  # Runs at 18:30 UTC = 00:00 IST (midnight) — after the last match of the day ends
+  schedule:
+    - cron: "30 18 * * *"
+
+  # Allow manual trigger with optional date override
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Date to process (YYYY-MM-DD). Leave blank for today."
+        required: false
+        default: ""
+
+jobs:
+  etl:
+    name: Scrape & Load
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily update
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          DATE_ARG=""
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            DATE_ARG="--date ${{ github.event.inputs.date }}"
+          fi
+          python scripts/daily_update.py $DATE_ARG
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Daily ETL failed — check logs above"
