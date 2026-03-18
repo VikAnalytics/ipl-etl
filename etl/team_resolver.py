@@ -77,6 +77,11 @@ _TEAMS: list[dict] = [
     },
     # ── Defunct franchises ── kept as-is, not merged into any current team
     {
+        "canonical": "Gujarat Lions",
+        "short": "GL",
+        "aliases": ["Gujarat Lions", "GL"],
+    },
+    {
         "canonical": "Deccan Chargers",
         "short": "DC2",
         "aliases": ["Deccan Chargers"],

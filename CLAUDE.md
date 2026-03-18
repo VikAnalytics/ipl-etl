@@ -53,8 +53,8 @@ ipl-etl/
 - **match_id**: Cricsheet file stem (e.g. `1082591`) — PK across all tables
 - **delivery_id**: `{match_id}_{innings}_{over}_{ball}` — stable composite key
 - **Upserts everywhere**: `INSERT ... ON CONFLICT DO UPDATE` — fully idempotent, safe to re-run
-- **over_number**: 0-indexed (as in Cricsheet)
-- **phase**: `powerplay` = overs 0–5, `middle` = 6–14, `death` = 15–19
+- **over_number**: 1-indexed (1–20); Cricsheet source is 0-indexed, parser adds +1
+- **phase**: `powerplay` = overs 1–6, `middle` = 7–15, `death` = 16–20
 - **season**: VARCHAR(10) — Cricsheet uses `"2020/21"` for the UAE season
 - **Team names**: always canonical; `team_resolver.py` normalizes at parse time. Old names (e.g. "Delhi Daredevils") resolve via `teams.aliases` GIN index at query time.
 - **wicket_fielders**: JSONB array (supports multiple fielders per dismissal)

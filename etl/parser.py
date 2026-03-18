@@ -224,7 +224,7 @@ def _parse_deliveries(
     legal_ball_counter = 0
 
     for over_raw in inn_raw.get("overs", []):
-        over_number = over_raw["over"]  # 0-indexed
+        over_number = over_raw["over"] + 1  # 1-indexed (1–20)
 
         for ball_index, delivery in enumerate(over_raw.get("deliveries", [])):
             ball_number = ball_index + 1  # 1-indexed position in the deliveries array
@@ -314,9 +314,10 @@ def _parse_deliveries(
 
 
 def _phase(over_number: int) -> str:
-    if over_number <= 5:
+    """over_number is 1-indexed (1–20)."""
+    if over_number <= 6:
         return "powerplay"
-    if over_number <= 14:
+    if over_number <= 15:
         return "middle"
     return "death"
 

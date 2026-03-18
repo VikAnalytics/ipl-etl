@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
     is_super_over       BOOLEAN      DEFAULT FALSE,
 
     -- Ball position
-    over_number         INT          NOT NULL,     -- 0-indexed
+    over_number         INT          NOT NULL,     -- 1-indexed (1–20)
     ball_number         INT          NOT NULL,     -- position within over deliveries array (1-indexed)
     legal_ball_number   INT,                       -- counts only legal deliveries (no wide/noball)
 
