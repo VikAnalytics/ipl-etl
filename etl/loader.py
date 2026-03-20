@@ -77,7 +77,7 @@ class Loader:
                 toss_winner, toss_decision,
                 outcome_winner, outcome_by_runs, outcome_by_wickets,
                 outcome_method, outcome_result, outcome_eliminator,
-                player_of_match, updated_at
+                player_of_match
             ) VALUES %s
             ON CONFLICT (match_id) DO UPDATE SET
                 data_version    = EXCLUDED.data_version,
@@ -96,7 +96,7 @@ class Loader:
             row["toss_winner"], row["toss_decision"],
             row["outcome_winner"], row["outcome_by_runs"], row["outcome_by_wickets"],
             row["outcome_method"], row["outcome_result"], row["outcome_eliminator"],
-            row["player_of_match"], "NOW()",
+            row["player_of_match"],
         )]
         execute_values(cur, sql, values)
         return 1

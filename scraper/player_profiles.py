@@ -77,6 +77,7 @@ def enrich_all(conn, force: bool = False) -> tuple[int, int]:
         player_key = cricinfo_to_key.get(cricinfo_id)
         if player_key:
             updates.append((
+                profile.get("full_name"),
                 profile.get("nationality"),
                 profile.get("batting_style"),
                 profile.get("bowling_style"),
@@ -104,6 +105,7 @@ def _query_wikidata(cricinfo_ids: list[str]) -> dict[str, dict]:
     query = f"""
     SELECT ?cricinfo_id
            ?dob
+           (SAMPLE(?full_name) AS ?full_name)
            (SAMPLE(?nationalityLabel) AS ?nationality)
            (SAMPLE(?batting_styleLabel) AS ?batting_style)
            (SAMPLE(?bowling_styleLabel) AS ?bowling_style)
@@ -111,6 +113,10 @@ def _query_wikidata(cricinfo_ids: list[str]) -> dict[str, dict]:
     WHERE {{
       VALUES ?cricinfo_id {{ {values_clause} }}
       ?player wdt:P2697 ?cricinfo_id.
+      OPTIONAL {{
+        ?player rdfs:label ?full_name.
+        FILTER(LANG(?full_name) = "en")
+      }}
       OPTIONAL {{ ?player wdt:P569 ?dob. }}
       OPTIONAL {{
         ?player wdt:P27 ?nationality_item.
@@ -159,6 +165,7 @@ def _query_wikidata(cricinfo_ids: list[str]) -> dict[str, dict]:
         dob = dob_raw[:10] if dob_raw else None  # "1988-11-05T00:00:00Z" → "1988-11-05"
 
         results[cricinfo_id] = {
+            "full_name":     row.get("full_name", {}).get("value"),
             "nationality":   row.get("nationality", {}).get("value"),
             "batting_style": row.get("batting_style", {}).get("value"),
             "bowling_style": row.get("bowling_style", {}).get("value"),
@@ -176,16 +183,17 @@ def _write_updates(conn, updates: list):
                 cur,
                 """
                 UPDATE players AS p SET
+                    full_name     = COALESCE(v.full_name, p.full_name),
                     nationality   = v.nationality,
                     batting_style = v.batting_style,
                     bowling_style = v.bowling_style,
                     playing_role  = v.playing_role,
                     date_of_birth = v.dob::date,
                     updated_at    = NOW()
-                FROM (VALUES %s) AS v(nationality, batting_style, bowling_style, playing_role, dob, player_key)
+                FROM (VALUES %s) AS v(full_name, nationality, batting_style, bowling_style, playing_role, dob, player_key)
                 WHERE p.player_key = v.player_key
                 """,
                 updates,
-                template="(%s, %s, %s, %s, %s, %s)",
+                template="(%s, %s, %s, %s, %s, %s, %s)",
             )
     logger.info(f"Wrote {len(updates)} player profile updates to DB")

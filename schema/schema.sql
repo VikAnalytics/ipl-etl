@@ -239,6 +239,10 @@ CREATE TABLE IF NOT EXISTS players (
 
 CREATE INDEX IF NOT EXISTS idx_players_name         ON players (player_name);
 CREATE INDEX IF NOT EXISTS idx_players_nationality  ON players (nationality);
+-- Trigram indexes for fuzzy name search (e.g. "Chris Gayle" → "CH Gayle")
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_players_name_trgm     ON players USING GIN (player_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_players_fullname_trgm ON players USING GIN (full_name gin_trgm_ops);
 
 
 -- ============================================================

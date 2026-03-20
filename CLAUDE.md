@@ -16,10 +16,11 @@ ipl-etl/
 │   ├── parser.py           # Cricsheet JSON → normalized Python dicts
 │   ├── computed.py         # Derived columns (phase, running score, RRR, etc.)
 │   ├── loader.py           # Idempotent upserts into Supabase via psycopg2
-│   └── team_resolver.py    # Canonical team name resolution (aliases + old names)
+│   ├── team_resolver.py    # Canonical team name resolution (aliases + old names)
+│   └── utils.py            # Shared helpers: log_run, fetch_done_matches
 ├── scraper/
 │   ├── people.py           # Cricsheet people.csv → cricinfo_id for all players
-│   ├── player_profiles.py  # Wikidata SPARQL → nationality + DOB
+│   ├── player_profiles.py  # Wikidata SPARQL → full_name + nationality + DOB
 │   └── iplt20.py           # iplt20.com squad/auction scraper (deferred, not validated)
 ├── schema/
 │   └── schema.sql          # Full Postgres DDL — safe to re-run (IF NOT EXISTS)
@@ -28,6 +29,8 @@ ipl-etl/
 │   ├── daily_update.py     # In-season update: downloads Cricsheet ZIP, loads new matches
 │   ├── backfill_teams.py   # Normalize historical team names in DB to canonical
 │   └── enrich_players.py   # Orchestrates player enrichment (steps 1-3)
+├── docs/
+│   └── technical.md        # Deep-dive technical reference (architecture, decisions, trade-offs)
 ├── .github/workflows/
 │   └── daily_update.yml    # Manual-trigger GitHub Actions workflow
 ├── ipl_json/               # Raw Cricsheet JSON files (gitignored, ~1170 files)

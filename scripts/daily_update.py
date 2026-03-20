@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 import argparse
 import io
+import json
 import logging
 import sys
 import zipfile
@@ -35,6 +36,7 @@ load_dotenv()
 from etl.parser import parse_dict
 from etl.computed import enrich
 from etl.loader import get_connection, Loader
+from etl.utils import fetch_done_matches, log_run
 
 logging.basicConfig(
     level=logging.INFO,
@@ -66,7 +68,7 @@ def main():
     logger.info(f"ZIP contains {len(available)} matches")
 
     conn = get_connection()
-    already_loaded = _fetch_done_matches(conn)
+    already_loaded = fetch_done_matches(conn)
     new_matches = sorted(available - already_loaded)
 
     if not new_matches:
@@ -90,12 +92,12 @@ def main():
             parsed = parse_dict(match_id, raw)
             enrich(parsed.innings_list, parsed.deliveries_list)
             rows = loader.load(parsed)
-            _log_run(conn, match_id, "success", rows_inserted=rows)
+            log_run(conn, match_id, CRICSHEET_ZIP_URL, "success", rows_inserted=rows)
             logger.info(f"  Loaded {match_id} — {rows} rows")
             success += 1
         except Exception as exc:
             logger.error(f"  Failed {match_id}: {exc}")
-            _log_run(conn, match_id, "error", error_message=str(exc))
+            log_run(conn, match_id, CRICSHEET_ZIP_URL, "error", error_message=str(exc))
             error += 1
 
     conn.close()
@@ -105,27 +107,8 @@ def main():
 
 
 def _read_from_zip(zf: zipfile.ZipFile, match_id: str) -> dict:
-    import json
     with zf.open(f"{match_id}.json") as f:
         return json.load(f)
-
-
-def _fetch_done_matches(conn) -> set[str]:
-    with conn.cursor() as cur:
-        cur.execute("SELECT match_id FROM etl_run_log WHERE status = 'success'")
-        return {row[0] for row in cur.fetchall()}
-
-
-def _log_run(conn, match_id, status, rows_inserted=0, error_message=None):
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO etl_run_log (match_id, source_file, status, error_message, rows_inserted)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (match_id, CRICSHEET_ZIP_URL, status, error_message, rows_inserted),
-            )
 
 
 def _parse_args():

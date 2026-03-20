@@ -4,11 +4,10 @@ scripts/historical_load.py
 One-time (re-runnable) batch loader for all Cricsheet IPL JSON files.
 
 Usage:
-    python scripts/historical_load.py [--json-dir ipl_json] [--workers 4]
+    python scripts/historical_load.py [--json-dir ipl_json]
 
 Options:
     --json-dir   Path to folder containing .json match files (default: ipl_json)
-    --workers    Number of parallel parse workers (default: 4)
     --match-id   Load a single match ID only (for testing / reruns)
     --skip-done  Skip matches that already have a 'success' log entry
 
@@ -21,7 +20,6 @@ import argparse
 import logging
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -32,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from etl.parser import parse_file, ParsedMatch
 from etl.computed import enrich
 from etl.loader import get_connection, Loader
+from etl.utils import fetch_done_matches, log_run
 
 load_dotenv()
 
@@ -64,7 +63,7 @@ def main():
     conn = get_connection()
     already_done: set[str] = set()
     if args.skip_done:
-        already_done = _fetch_done_matches(conn)
+        already_done = fetch_done_matches(conn)
         logger.info(f"Skipping {len(already_done)} already-loaded matches")
 
     pending = [f for f in files if f.stem not in already_done]
@@ -85,11 +84,11 @@ def main():
             parsed = parse_file(fpath)
             enrich(parsed.innings_list, parsed.deliveries_list)
             rows = loader.load(parsed)
-            _log_run(conn, match_id, str(fpath), "success", rows_inserted=rows)
+            log_run(conn, match_id, str(fpath), "success", rows_inserted=rows)
             success += 1
         except Exception as exc:
             logger.warning(f"  FAILED {match_id}: {exc}")
-            _log_run(conn, match_id, str(fpath), "error", error_message=str(exc))
+            log_run(conn, match_id, str(fpath), "error", error_message=str(exc))
             error += 1
 
         if pbar:
@@ -105,39 +104,12 @@ def main():
         sys.exit(1)
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Batch-load Cricsheet IPL JSON files into Supabase")
     p.add_argument("--json-dir",  default="ipl_json", help="Path to JSON match files folder")
     p.add_argument("--match-id",  default=None,       help="Load a single match ID (for testing)")
     p.add_argument("--skip-done", action="store_true", help="Skip matches already logged as success")
     return p.parse_args()
-
-
-def _fetch_done_matches(conn) -> set[str]:
-    with conn.cursor() as cur:
-        cur.execute("SELECT match_id FROM etl_run_log WHERE status = 'success'")
-        return {row[0] for row in cur.fetchall()}
-
-
-def _log_run(
-    conn,
-    match_id: str,
-    source_file: str,
-    status: str,
-    rows_inserted: int = 0,
-    error_message: str = None,
-):
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO etl_run_log (match_id, source_file, status, error_message, rows_inserted)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (match_id, source_file, status, error_message, rows_inserted),
-            )
 
 
 if __name__ == "__main__":
