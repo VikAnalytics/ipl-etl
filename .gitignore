@@ -25,3 +25,7 @@ env/
 
 # macOS
 .DS_Store
+
+docs/technical.md
+
+

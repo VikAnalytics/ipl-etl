@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from etl.team_resolver import resolve_team
+from etl.venue_resolver import resolve_venue, resolve_city
 
 
 # ── Data containers ──────────────────────────────────────────────────────────
@@ -112,8 +113,8 @@ def _parse_match(match_id: str, meta: dict, info: dict) -> dict:
         "team_type":         info.get("team_type"),
         "balls_per_over":    info.get("balls_per_over", 6),
         "overs":             info.get("overs", 20),
-        "venue":             info.get("venue"),
-        "city":              info.get("city"),
+        "venue":             resolve_venue(info.get("venue")),
+        "city":              resolve_city(info.get("city")),
         "match_date":        dates[0] if dates else None,
         "team1":             resolve_team(info["teams"][0]) if len(info.get("teams", [])) > 0 else None,
         "team2":             resolve_team(info["teams"][1]) if len(info.get("teams", [])) > 1 else None,
