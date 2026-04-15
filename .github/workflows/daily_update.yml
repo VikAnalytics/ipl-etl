@@ -1,8 +1,13 @@
 name: IPL Match Update
 
 on:
-  # Manual trigger only — run this after each IPL match day once
-  # Cricsheet has published the match (usually 12-24h after match ends).
+  # Runs twice daily during IPL season (Apr–May).
+  # Cricsheet publishes match files 12-24h after match ends.
+  # 06:00 UTC catches overnight publishes; 14:00 UTC catches afternoon publishes.
+  schedule:
+    - cron: "0 6 * * *"
+    - cron: "0 14 * * *"
+  # Manual trigger — useful for dry runs or forcing an immediate check.
   # Go to: Actions → "IPL Match Update" → "Run workflow"
   workflow_dispatch:
     inputs:
