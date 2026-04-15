@@ -1,14 +1,11 @@
 name: IPL Match Update
 
 on:
-  # Runs twice daily during IPL season (Apr–May).
-  # Cricsheet publishes match files 12-24h after match ends.
-  # 06:00 UTC catches overnight publishes; 14:00 UTC catches afternoon publishes.
-  schedule:
-    - cron: "0 6 * * *"
-    - cron: "0 14 * * *"
-  # Manual trigger — useful for dry runs or forcing an immediate check.
-  # Go to: Actions → "IPL Match Update" → "Run workflow"
+  # Triggered externally via GitHub API (workflow_dispatch).
+  # Fire with a POST to:
+  #   https://api.github.com/repos/VikAnalytics/ipl-etl/actions/workflows/daily_update.yml/dispatches
+  # Requires a GitHub PAT with repo/actions:write scope in the Authorization header.
+  # Also available manually: Actions → "IPL Match Update" → "Run workflow"
   workflow_dispatch:
     inputs:
       dry_run:
